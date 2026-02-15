@@ -1,0 +1,463 @@
+"""
+SIMULATEUR DE CAPTEURS AVANCÉ
+==============================
+Génère des données variées pour tester la fiabilité et précision du modèle IA
+Teste tous les scénarios possibles : normal, dégradation, crises, etc.
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import json
+import requests
+
+# Configuration
+API_URL = 'http://localhost:5000'
+NOMBRE_ECHANTILLONS = 100
+INTERVAL_TEMPS = 1  # secondes
+
+class SimulateurCapteurs:
+    """Simulateur réaliste de capteurs industriels"""
+    
+    def __init__(self):
+        self.historique = []
+        self.predictions = []
+        self.resultats = {
+            'total_predictions': 0,
+            'correct_predictions': 0,
+            'predictions_par_etat': {0: 0, 1: 0, 2: 0},
+            'confiance_moyenne': 0,
+            'temps_total': 0
+        }
+        
+    def scenario_normal_stable(self):
+        """✅ Système fonctionnant normalement - Stable"""
+        return {
+            'nom': '✅ NORMAL STABLE',
+            'pression_bar': 7.0 + np.random.normal(0, 0.1),
+            'vibration_hz': 25 + np.random.normal(0, 2),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 0,
+            'description': 'Tous les paramètres dans les normes'
+        }
+    
+    def scenario_normal_avec_bruit(self):
+        """✅ Système normal avec plus de bruit"""
+        return {
+            'nom': '✅ NORMAL + BRUIT',
+            'pression_bar': 7.0 + np.random.normal(0, 0.15),
+            'vibration_hz': 25 + np.random.normal(0, 3),
+            'temperature_c': 60 + np.random.normal(0, 2),
+            'debit_m3h': 150 + np.random.normal(0, 8),
+            'ultrasons_db': 45 + np.random.normal(0, 3),
+            'etat_reel': 0,
+            'description': 'Système normal avec fluctuations naturelles'
+        }
+    
+    def scenario_pression_basse(self):
+        """⚠️ Pression anormalement basse"""
+        return {
+            'nom': '⚠️ PRESSION BASSE',
+            'pression_bar': 6.2 + np.random.normal(0, 0.15),
+            'vibration_hz': 25 + np.random.normal(0, 2),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 1,
+            'description': 'Pression décroissante = possible fuite'
+        }
+    
+    def scenario_vibration_elevee(self):
+        """⚠️ Vibrations élevées"""
+        return {
+            'nom': '⚠️ VIBRATION ÉLEVÉE',
+            'pression_bar': 7.0 + np.random.normal(0, 0.1),
+            'vibration_hz': 38 + np.random.normal(0, 3),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 1,
+            'description': 'Vibrations anormales = usure ou désalignement'
+        }
+    
+    def scenario_temperature_haute(self):
+        """⚠️ Température élevée"""
+        return {
+            'nom': '⚠️ TEMPÉRATURE HAUTE',
+            'pression_bar': 7.0 + np.random.normal(0, 0.1),
+            'vibration_hz': 25 + np.random.normal(0, 2),
+            'temperature_c': 72 + np.random.normal(0, 2),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 1,
+            'description': 'Température élevée = friction ou compression'
+        }
+    
+    def scenario_debit_augmente(self):
+        """⚠️ Débit anormalement élevé"""
+        return {
+            'nom': '⚠️ DÉBIT AUGMENTÉ',
+            'pression_bar': 7.0 + np.random.normal(0, 0.1),
+            'vibration_hz': 25 + np.random.normal(0, 2),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 175 + np.random.normal(0, 8),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 1,
+            'description': 'Débit augmenté = fuite progressive'
+        }
+    
+    def scenario_ultrason_eleve(self):
+        """⚠️ Ultrason élevé"""
+        return {
+            'nom': '⚠️ ULTRASON ÉLEVÉ',
+            'pression_bar': 7.0 + np.random.normal(0, 0.1),
+            'vibration_hz': 25 + np.random.normal(0, 2),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 62 + np.random.normal(0, 3),
+            'etat_reel': 1,
+            'description': 'Son ultrasonique élevé = fuite imminente'
+        }
+    
+    def scenario_degradation_progressive(self):
+        """⚠️ Dégradation progressive"""
+        iteration = len([p for p in self.predictions if p['nom'] == '⚠️ DÉGRADATION PROGRESSIVE']) % 5
+        return {
+            'nom': '⚠️ DÉGRADATION PROGRESSIVE',
+            'pression_bar': 7.0 - (iteration * 0.15) + np.random.normal(0, 0.1),
+            'vibration_hz': 25 + (iteration * 2.5) + np.random.normal(0, 2),
+            'temperature_c': 60 + (iteration * 1.5) + np.random.normal(0, 1),
+            'debit_m3h': 150 + (iteration * 5) + np.random.normal(0, 5),
+            'ultrasons_db': 45 + (iteration * 3) + np.random.normal(0, 2),
+            'etat_reel': 1,
+            'description': f'Dégradation lente (étape {iteration + 1}/5)'
+        }
+    
+    def scenario_fuite_critique(self):
+        """🔴 Fuite critique"""
+        return {
+            'nom': '🔴 FUITE CRITIQUE',
+            'pression_bar': 5.5 + np.random.normal(0, 0.2),
+            'vibration_hz': 50 + np.random.normal(0, 5),
+            'temperature_c': 75 + np.random.normal(0, 2),
+            'debit_m3h': 200 + np.random.normal(0, 10),
+            'ultrasons_db': 85 + np.random.normal(0, 5),
+            'etat_reel': 2,
+            'description': 'Tous les paramètres critiques - Intervention immédiate'
+        }
+    
+    def scenario_fuite_critique_extreme(self):
+        """🔴🔴 Fuite extrême"""
+        return {
+            'nom': '🔴🔴 FUITE EXTRÊME',
+            'pression_bar': 4.8 + np.random.normal(0, 0.3),
+            'vibration_hz': 65 + np.random.normal(0, 8),
+            'temperature_c': 82 + np.random.normal(0, 3),
+            'debit_m3h': 230 + np.random.normal(0, 15),
+            'ultrasons_db': 95 + np.random.normal(0, 5),
+            'etat_reel': 2,
+            'description': 'Fuite extrême - Perte massive d\'énergie'
+        }
+    
+    def scenario_fuite_petite(self):
+        """🔴 Petite fuite difficile à détecter"""
+        return {
+            'nom': '🔴 PETITE FUITE',
+            'pression_bar': 6.85 + np.random.normal(0, 0.1),
+            'vibration_hz': 27 + np.random.normal(0, 2),
+            'temperature_c': 61 + np.random.normal(0, 1),
+            'debit_m3h': 158 + np.random.normal(0, 5),
+            'ultrasons_db': 52 + np.random.normal(0, 3),
+            'etat_reel': 2,
+            'description': 'Petite fuite - Difficile à détecter, critiquement progressive'
+        }
+    
+    def scenario_fuite_progressive(self):
+        """🔴 Fuite qui s'aggrave"""
+        iteration = len([p for p in self.predictions if p['nom'] == '🔴 FUITE PROGRESSIVE']) % 5
+        return {
+            'nom': '🔴 FUITE PROGRESSIVE',
+            'pression_bar': 6.8 - (iteration * 0.35) + np.random.normal(0, 0.15),
+            'vibration_hz': 25 + (iteration * 8) + np.random.normal(0, 3),
+            'temperature_c': 60 + (iteration * 4) + np.random.normal(0, 2),
+            'debit_m3h': 150 + (iteration * 15) + np.random.normal(0, 8),
+            'ultrasons_db': 45 + (iteration * 10) + np.random.normal(0, 4),
+            'etat_reel': 2,
+            'description': f'Fuite qui s\'aggrave (étape {iteration + 1}/5)'
+        }
+    
+    def scenario_fausse_alarme_pression(self):
+        """❓ Fausse alarme - Pression brève"""
+        return {
+            'nom': '❓ FAUSSE ALARME PRESSION',
+            'pression_bar': 6.0 + np.random.normal(0, 0.15),
+            'vibration_hz': 25 + np.random.normal(0, 2),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 0,
+            'description': 'Pression basse = fausse alarme (variation naturelle)'
+        }
+    
+    def scenario_pics_vibration(self):
+        """❓ Pics de vibration aléatoires"""
+        return {
+            'nom': '❓ PICS VIBRATION',
+            'pression_bar': 7.0 + np.random.normal(0, 0.1),
+            'vibration_hz': 25 + np.random.normal(0, 4),
+            'temperature_c': 60 + np.random.normal(0, 1),
+            'debit_m3h': 150 + np.random.normal(0, 5),
+            'ultrasons_db': 45 + np.random.normal(0, 2),
+            'etat_reel': 0,
+            'description': 'Pics de vibration aléatoires = bruit normal'
+        }
+    
+    def scenario_tous_parametres_varies(self):
+        """🎲 Tous les paramètres varient ensemble"""
+        variation = np.random.uniform(0, 1)
+        
+        if variation < 0.4:  # Normal
+            return {
+                'nom': '🎲 VARIATION ALÉATOIRE (Normal)',
+                'pression_bar': 6.8 + np.random.uniform(-0.3, 0.5),
+                'vibration_hz': 20 + np.random.uniform(-5, 15),
+                'temperature_c': 58 + np.random.uniform(-3, 5),
+                'debit_m3h': 140 + np.random.uniform(-10, 30),
+                'ultrasons_db': 40 + np.random.uniform(-5, 15),
+                'etat_reel': 0,
+                'description': 'Variation normale aléatoire'
+            }
+        elif variation < 0.75:  # Warning
+            return {
+                'nom': '🎲 VARIATION ALÉATOIRE (Warning)',
+                'pression_bar': 6.2 + np.random.uniform(0, 0.8),
+                'vibration_hz': 30 + np.random.uniform(0, 15),
+                'temperature_c': 64 + np.random.uniform(0, 10),
+                'debit_m3h': 160 + np.random.uniform(10, 40),
+                'ultrasons_db': 55 + np.random.uniform(5, 20),
+                'etat_reel': 1,
+                'description': 'Variation aléatoire vers l\'alerte'
+            }
+        else:  # Critical
+            return {
+                'nom': '🎲 VARIATION ALÉATOIRE (Critique)',
+                'pression_bar': 5.2 + np.random.uniform(0, 1.0),
+                'vibration_hz': 45 + np.random.uniform(10, 20),
+                'temperature_c': 72 + np.random.uniform(5, 12),
+                'debit_m3h': 195 + np.random.uniform(20, 40),
+                'ultrasons_db': 80 + np.random.uniform(10, 20),
+                'etat_reel': 2,
+                'description': 'Variation aléatoire critique'
+            }
+    
+    def generer_sequence_test(self):
+        """Génère une séquence complète de test"""
+        scenarios = [
+            # Normaux
+            ('normal_stable', self.scenario_normal_stable, 8),
+            ('normal_bruit', self.scenario_normal_avec_bruit, 5),
+            
+            # Warnings progressifs
+            ('pression_basse', self.scenario_pression_basse, 5),
+            ('vibration_elevee', self.scenario_vibration_elevee, 5),
+            ('temperature_haute', self.scenario_temperature_haute, 5),
+            ('debit_augmente', self.scenario_debit_augmente, 5),
+            ('ultrason_eleve', self.scenario_ultrason_eleve, 5),
+            ('degradation', self.scenario_degradation_progressive, 5),
+            
+            # Critiques
+            ('fuite_critique', self.scenario_fuite_critique, 5),
+            ('fuite_extreme', self.scenario_fuite_critique_extreme, 3),
+            ('fuite_petite', self.scenario_fuite_petite, 5),
+            ('fuite_progressive', self.scenario_fuite_progressive, 5),
+            
+            # Fausses alarmes
+            ('fausse_alarme', self.scenario_fausse_alarme_pression, 4),
+            ('pics_vibration', self.scenario_pics_vibration, 4),
+            
+            # Aléatoires
+            ('variation_aleatoire', self.scenario_tous_parametres_varies, 8),
+        ]
+        
+        sequence = []
+        for scenario_id, scenario_func, count in scenarios:
+            for i in range(count):
+                sequence.append((scenario_id, scenario_func))
+        
+        return sequence
+    
+    def executer_test(self):
+        """Exécute le test complet"""
+        print("\n" + "="*80)
+        print("   SIMULATEUR DE CAPTEURS AVANCÉ - TEST DE FIABILITÉ")
+        print("="*80)
+        
+        sequence = self.generer_sequence_test()
+        total = len(sequence)
+        
+        print(f"\n📊 Nombre total de scénarios: {total}")
+        print(f"🎯 Objectif: Tester la précision du modèle sur tous les cas")
+        print(f"\nDémarrage dans 3 secondes...")
+        
+        import time
+        for i in range(3, 0, -1):
+            print(f"   {i}...", end="\r")
+            time.sleep(1)
+        print("\n" + "="*80)
+        
+        for idx, (scenario_id, scenario_func) in enumerate(sequence, 1):
+            print(f"\n[{idx}/{total}] Exécution du scénario...")
+            self.tester_scenario(scenario_func)
+            time.sleep(0.5)  # Petit délai entre les tests
+        
+        self.afficher_resultats()
+        self.exporter_resultats()
+    
+    def tester_scenario(self, scenario_func):
+        """Teste un scénario spécifique"""
+        try:
+            donnees = scenario_func()
+            nom = donnees['nom']
+            description = donnees['description']
+            etat_reel = donnees['etat_reel']
+            
+            print(f"   📝 {nom}")
+            print(f"      {description}")
+            print(f"      P={donnees['pression_bar']:.2f}bar | V={donnees['vibration_hz']:.1f}Hz | T={donnees['temperature_c']:.1f}°C")
+            
+            # Préparer les données pour l'API
+            payload = {
+                'pressure': donnees['pression_bar'],
+                'vibration': donnees['vibration_hz'],
+                'temperature': donnees['temperature_c'],
+                'flowRate': donnees['debit_m3h'],
+                'acoustic': donnees['ultrasons_db']
+            }
+            
+            # Appeler l'API
+            response = requests.post(f'{API_URL}/predict', json=payload, timeout=5)
+            
+            if response.status_code == 200:
+                result = response.json()
+                pred = result['prediction']
+                
+                etat_predit = pred['leak_state']
+                confiance = pred['confidence']
+                prob_fuite = pred['leak_probability']
+                
+                # Vérifier si la prédiction est correcte
+                correct = (etat_predit == etat_reel)
+                symbole = '✅' if correct else '❌'
+                
+                print(f"      {symbole} Prédiction: {pred['leak_state_label']}")
+                print(f"      Confiance: {confiance*100:.1f}% | Prob Fuite: {prob_fuite:.1f}%")
+                
+                # Enregistrer
+                self.predictions.append({
+                    'scenario': nom,
+                    'etat_reel': etat_reel,
+                    'etat_predit': etat_predit,
+                    'correct': correct,
+                    'confiance': confiance,
+                    'prob_fuite': prob_fuite,
+                    'donnees': donnees
+                })
+                
+                self.resultats['total_predictions'] += 1
+                if correct:
+                    self.resultats['correct_predictions'] += 1
+                self.resultats['predictions_par_etat'][etat_predit] += 1
+            else:
+                print(f"      ❌ Erreur API: {response.status_code}")
+        
+        except requests.exceptions.ConnectionError:
+            print(f"      ❌ Erreur: API non accessible sur {API_URL}")
+            print(f"         Assurez-vous que le serveur est lancé: python api_modele_realtime.py")
+        except Exception as e:
+            print(f"      ❌ Erreur: {str(e)}")
+    
+    def afficher_resultats(self):
+        """Affiche les résultats"""
+        print("\n" + "="*80)
+        print("   RÉSULTATS DU TEST")
+        print("="*80)
+        
+        total = self.resultats['total_predictions']
+        correct = self.resultats['correct_predictions']
+        
+        if total > 0:
+            precision = (correct / total) * 100
+            
+            print(f"\n📊 STATISTIQUES GLOBALES:")
+            print(f"   • Total de prédictions: {total}")
+            print(f"   • Prédictions correctes: {correct}")
+            print(f"   • Prédictions incorrectes: {total - correct}")
+            print(f"   • Précision globale: {precision:.1f}%")
+            
+            print(f"\n📈 DISTRIBUTION DES PRÉDICTIONS:")
+            for etat, count in self.resultats['predictions_par_etat'].items():
+                label = ['Normal', 'Pré-fuite', 'Critique'][etat]
+                pct = (count / total) * 100
+                print(f"   • État {etat} ({label}): {count} ({pct:.1f}%)")
+            
+            print(f"\n🎯 CONFIANCE MOYENNE:")
+            if self.predictions:
+                confiance_moy = np.mean([p['confiance'] for p in self.predictions])
+                print(f"   • {confiance_moy*100:.1f}%")
+            
+            # Analyse par catégorie
+            print(f"\n📋 ANALYSE PAR SCÉNARIO:")
+            scenarios_uniques = {}
+            for pred in self.predictions:
+                scenario = pred['scenario']
+                if scenario not in scenarios_uniques:
+                    scenarios_uniques[scenario] = {'total': 0, 'correct': 0}
+                scenarios_uniques[scenario]['total'] += 1
+                if pred['correct']:
+                    scenarios_uniques[scenario]['correct'] += 1
+            
+            for scenario, stats in sorted(scenarios_uniques.items()):
+                precision_scenario = (stats['correct'] / stats['total']) * 100 if stats['total'] > 0 else 0
+                symbole = '✅' if precision_scenario >= 80 else '⚠️' if precision_scenario >= 60 else '❌'
+                print(f"   {symbole} {scenario}: {precision_scenario:.0f}% ({stats['correct']}/{stats['total']})")
+        
+        else:
+            print("\n❌ Aucune prédiction effectuée - Vérifiez la connexion API")
+        
+        print(f"\n" + "="*80)
+    
+    def exporter_resultats(self):
+        """Exporte les résultats en CSV"""
+        if self.predictions:
+            df = pd.DataFrame([{
+                'scenario': p['scenario'],
+                'etat_reel': p['etat_reel'],
+                'etat_predit': p['etat_predit'],
+                'correct': p['correct'],
+                'confiance': p['confiance'],
+                'prob_fuite': p['prob_fuite'],
+                'pression': p['donnees']['pression_bar'],
+                'vibration': p['donnees']['vibration_hz'],
+                'temperature': p['donnees']['temperature_c'],
+                'debit': p['donnees']['debit_m3h'],
+                'acoustic': p['donnees']['ultrasons_db']
+            } for p in self.predictions])
+            
+            filename = f"resultats_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            df.to_csv(filename, index=False)
+            print(f"\n💾 Résultats exportés: {filename}")
+            
+            # Afficher un aperçu
+            print(f"\n📊 Aperçu des résultats:")
+            print(df.head(10).to_string())
+
+def main():
+    """Fonction principale"""
+    simulateur = SimulateurCapteurs()
+    simulateur.executer_test()
+
+if __name__ == "__main__":
+    main()

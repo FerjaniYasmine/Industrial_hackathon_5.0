@@ -1,0 +1,5 @@
+{
+  "A1": {"pressure":5.7,"vibration":0.28,"temperature":40,"risk":82},
+  "A2": {"pressure":5.95,"vibration":0.22,"temperature":40.1,"risk":35},
+  "B1": {"pressure":5.85,"vibration":0.25,"temperature":39.8,"risk":65}
+}

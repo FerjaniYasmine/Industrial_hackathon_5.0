@@ -1,0 +1,26 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# --- Node / JavaScript ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Données et Modèles (fichiers lourds ou temporaires) ---
+# Si tu veux garder tes modèles IA sur GitHub, commente la ligne suivante avec un #
+*.pkl
+*.joblib
+
+# --- Système et IDE ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- Environnement ---
+.env
